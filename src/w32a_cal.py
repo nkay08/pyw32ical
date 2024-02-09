@@ -15,7 +15,8 @@ ICAL_FILTER_FULL={
   "status": True, # or "meetingstatus",
   "categories": True,
   "importance": True, # or "priority"
-  "location": True
+  "location": True,
+  "attendees": True
   }
 
 ICAL_FILTER_SAFE={
@@ -291,6 +292,19 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
   if filter is None or filter.get("categories", False):
     # string
     ical_event.add('CATEGORIES', win32_event.Categories)
+
+  if filter is None or filter.get("attendees", False):
+    # str, semicolon delimited
+    # https://learn.microsoft.com/en-us/office/vba/api/outlook.appointmentitem.requiredattendees
+    required_attendees_str = win32_event.RequiredAttendees
+    optional_attendees_str = win32_event.OptionalAttendees
+
+    for attendee in required_attendees_str.split(";"):
+      if attendee:
+        ical_event.add('ATTENDEE', attendee, parameters={'ROLE':'REQ-PARTICIPANT'})
+    for attendee in optional_attendees_str.split(";"):
+      if attendee:
+        ical_event.add('ATTENDEE', attendee)
 
   if filter is None or filter.get("priority", False) or filter.get("importance", False):
     # https://learn.microsoft.com/en-us/office/vba/api/outlook.appointmentitem.importance
