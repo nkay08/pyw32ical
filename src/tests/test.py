@@ -81,7 +81,7 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         # self.assertEqual(ical_event.get('CATEGORIES'), self.event_with_end_args['categories'])
         # self.assertEqual(ical_event.get('ATTENDEE'), self.event_with_end_args['req_attendees'])
 
-        self.assertEqual(ical_event.get('RRULE').to_ical(), b'')
+        self.assertIsNone(ical_event.get('RRULE'))
 
     def test_event_with_duration(self):
         event_args = self.event_with_duration_args.copy()
@@ -106,7 +106,7 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         # self.assertEqual(ical_event.get('CATEGORIES'), self.event_with_end_args['categories'])
         # self.assertEqual(ical_event.get('ATTENDEE'), self.event_with_end_args['req_attendees'])
 
-        self.assertEqual(ical_event.get('RRULE').to_ical(), b'')
+        self.assertIsNone(ical_event.get('RRULE'))
 
     def test_event_with_end_and_duration(self):
         event_args = self.event_with_duration_args.copy()
@@ -133,7 +133,7 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         # self.assertEqual(ical_event.get('CATEGORIES'), self.event_with_end_args['categories'])
         # self.assertEqual(ical_event.get('ATTENDEE'), self.event_with_end_args['req_attendees'])
 
-        self.assertEqual(ical_event.get('RRULE').to_ical(), b'')
+        self.assertIsNone(ical_event.get('RRULE'))
 
 
     def test_all_day(self):
@@ -191,9 +191,105 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
 
         # Check recurrence properties
         self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 3)
         self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'DAILY')
         self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
         self.assertEqual(ical_event.get('RRULE').get('COUNT'), recurrence_count)
+
+    def test_recurring_daily_no_end(self):
+        event_args = self.event_with_end_args.copy()
+        event_args['recurring'] = True
+
+        event_args['recurrence_state'] = w32a_cal.RecurrenceState.MASTER
+
+        recurrence_interval = 1
+        recurrence_count = 10
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.DAILY,
+                                                  recurrence_interval,
+                                                  recurrence_count,
+                                                  no_end=True)
+        event_args['recurrence_pattern'] = recurrence_pattern
+
+        event = W32Event(**event_args)
+        ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+        self.assertEqual(len(ical_events), 1)
+        ical_event: icalendar.Event = ical_events[0]
+
+        # Check basic event properties
+        self.assertEqual(ical_event.get('UID'), event_args['id'])
+        self.assertEqual(ical_event.get('DTSTART').dt, event_args['start'])
+        self.assertIsInstance(ical_event.get('DTSTART').dt, datetime.datetime)
+        self.assertTrue(ical_event.get('DTSTART').dt.hour != 0 and ical_event.get('DTSTART').dt.minute != 0)
+
+        self.assertEqual(ical_event.get('DTEND').dt, self.event_with_end_args['end'])
+        self.assertIsInstance(ical_event.get('DTEND').dt, datetime.datetime)
+        self.assertTrue(ical_event.get('DTEND').dt.hour != 0 and ical_event.get('DTEND').dt.minute != 0)
+
+        self.assertIsNone(ical_event.get('DURATION'))
+
+        # Check recurrence properties
+        self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 2)
+        self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'DAILY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
+        self.assertIsNone(ical_event.get('RRULE').get('COUNT'))
+
+        end = event_args['start'] + datetime.timedelta(days=2)
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.DAILY,
+                                                  recurrence_interval,
+                                                  end=end,
+                                                  occurrences=recurrence_count)
+        event_args['recurrence_pattern'] = recurrence_pattern
+
+        event = W32Event(**event_args)
+        ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+        self.assertEqual(len(ical_events), 1)
+        ical_event: icalendar.Event = ical_events[0]
+        # Check recurrence properties
+        self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 3)
+        self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'DAILY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
+        self.assertEqual(ical_event.get('RRULE').get('COUNT'), recurrence_count)
+        self.assertIsNone(ical_event.get('RRULE').get('UNTIL'))
+
+    def test_recurring_daily_with_end(self):
+        event_args = self.event_with_end_args.copy()
+        event_args['recurring'] = True
+
+        event_args['recurrence_state'] = w32a_cal.RecurrenceState.MASTER
+
+        recurrence_interval = 1
+        end = event_args['start'] + datetime.timedelta(days=2)
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.DAILY,
+                                                  recurrence_interval,
+                                                  end=end)
+        event_args['recurrence_pattern'] = recurrence_pattern
+
+        event = W32Event(**event_args)
+        ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+        self.assertEqual(len(ical_events), 1)
+        ical_event: icalendar.Event = ical_events[0]
+
+        # Check basic event properties
+        self.assertEqual(ical_event.get('UID'), event_args['id'])
+        self.assertEqual(ical_event.get('DTSTART').dt, event_args['start'])
+        self.assertIsInstance(ical_event.get('DTSTART').dt, datetime.datetime)
+        self.assertTrue(ical_event.get('DTSTART').dt.hour != 0 and ical_event.get('DTSTART').dt.minute != 0)
+
+        self.assertEqual(ical_event.get('DTEND').dt, self.event_with_end_args['end'])
+        self.assertIsInstance(ical_event.get('DTEND').dt, datetime.datetime)
+        self.assertTrue(ical_event.get('DTEND').dt.hour != 0 and ical_event.get('DTEND').dt.minute != 0)
+
+        self.assertIsNone(ical_event.get('DURATION'))
+
+        # Check recurrence properties
+        self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 3)
+        self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'DAILY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
+        self.assertIsNone(ical_event.get('RRULE').get('COUNT'))
+        self.assertEqual(ical_event.get('RRULE').get('UNTIL'), end)
 
     def test_recurring_weekly(self):
         event_args = self.event_with_end_args.copy()

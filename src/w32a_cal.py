@@ -339,6 +339,9 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
     logging.debug("Parse recurrence for event %s - %s", win32_event.EntryID, win32_event.Subject)
 
     if win32_event.IsRecurring and win32_event.RecurrenceState == RecurrenceState.MASTER:
+
+      ical_event.add("RRULE", _win32_event_recurrence_to_rrule_dict(win32_event))
+
       win32_recurrence = win32_event.GetRecurrencePattern()
       if win32_recurrence is not None:
         exdate_list: list[datetime.datetime] = []
@@ -366,7 +369,6 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
         if len(exdate_list) > 0:
           ical_event.add("EXDATE", exdate_list, parameters={'VALUE':'DATE-TIME'})
 
-  ical_event.add("RRULE", _win32_event_recurrence_to_rrule_dict(win32_event))
   ical_event.add('SEQUENCE', sequence)
 
   event_list.insert(0, ical_event)
