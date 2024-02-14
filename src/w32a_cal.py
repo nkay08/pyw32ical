@@ -115,7 +115,7 @@ def win32_date_to_datetime(d: str, utc: bool = False, tz: Optional[datetime.tzin
 
   return dt
 
-def _win32_day_of_week_mask_to_ical_str(win32_mask) -> list[int]:
+def _win32_day_of_week_mask_to_ical_str(win32_mask: DayOfWeekMaskEnum) -> list[int]:
   rrule_weekday = []
   if (win32_mask & DayOfWeekMaskEnum.MONDAY):
     rrule_weekday.append("MO")
@@ -203,23 +203,24 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
       rrule_dict['byday'] = day_of_week_mask
   if rtype == RecurrenceType.MONTHLY:
     # rrule_dict['byweekday'] = self.day_of_week_mask.to_rrule_weekday()
-    if win32_recurrence.DayOfMonth is not None:
+    if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
   if rtype == RecurrenceType.MONTHLY_NTH:
-    # rrule_dict['byweekday'] = self.day_of_week_mask.to_rrule_weekday()
-    if win32_recurrence.DayOfMonth is not None:
+    # TODO: INSTANCE https://learn.microsoft.com/en-us/office/vba/api/outlook.recurrencepattern
+    if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
+    if day_of_week_mask is not None:
+      rrule_dict['byday'] = day_of_week_mask
   if rtype == RecurrenceType.YEARLY:
-    # rrule_dict['byweekday'] = self.day_of_week_mask.to_rrule_weekday()
-    if win32_recurrence.DayOfMonth is not None:
+    if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
-    if win32_recurrence.MonthOfYear is not None:
+    if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
   if rtype == RecurrenceType.YEARLY_NTH:
-    # rrule_dict['byweekday'] = self.day_of_week_mask.to_rrule_weekday()
-    if win32_recurrence.DayOfMonth is not None:
-      rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
-    if win32_recurrence.MonthOfYear is not None:
+    # TODO INSTANCE
+    if day_of_week_mask is not None:
+      rrule_dict['byday'] = day_of_week_mask
+    if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
 
   return rrule_dict
