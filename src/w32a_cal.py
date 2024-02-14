@@ -201,27 +201,37 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
   if rtype == RecurrenceType.WEEKLY:
     if day_of_week_mask is not None:
       rrule_dict['byday'] = day_of_week_mask
+    else:
+      raise ValueError("DayOfWeekMask must be set for WEEKLY recurrence")
   if rtype == RecurrenceType.MONTHLY:
     # rrule_dict['byweekday'] = self.day_of_week_mask.to_rrule_weekday()
     if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
+    else:
+      raise ValueError("DayOfMonth must be set for MONTHLY recurrence")
   if rtype == RecurrenceType.MONTHLY_NTH:
     # TODO: INSTANCE https://learn.microsoft.com/en-us/office/vba/api/outlook.recurrencepattern
     if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
     if day_of_week_mask is not None:
       rrule_dict['byday'] = day_of_week_mask
+    if not rrule_dict.get('byday') and not rrule_dict.get('bymonthday'):
+      raise ValueError("DayOfMonth or DayOfWeekMask must be set for MONTHLY_NTH recurrence")
   if rtype == RecurrenceType.YEARLY:
     if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
     if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
+    if not rrule_dict.get('bymonthday') and not rrule_dict.get('bymonth'):
+      raise ValueError("DayOfMonth or MonthOfYear must be set for YEARLY recurrence")
   if rtype == RecurrenceType.YEARLY_NTH:
     # TODO INSTANCE
     if day_of_week_mask is not None:
       rrule_dict['byday'] = day_of_week_mask
     if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
+    if not rrule_dict.get('byday') and not rrule_dict.get('bymonth'):
+      raise ValueError("DayOfWeekMask or MonthOfYear must be set for YEARLY_NTH recurrence")
 
   return rrule_dict
 
