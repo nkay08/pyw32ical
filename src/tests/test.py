@@ -163,7 +163,9 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
 
         recurrence_interval = 1
         recurrence_count = 10
-        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.DAILY, recurrence_interval, recurrence_count)
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.DAILY,
+                                                  recurrence_interval,
+                                                  recurrence_count)
         event_args['recurrence_pattern'] = recurrence_pattern
 
         event = W32Event(**event_args)
@@ -171,6 +173,7 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         self.assertEqual(len(ical_events), 1)
         ical_event: icalendar.Event = ical_events[0]
 
+        # Check basic event properties
         self.assertEqual(ical_event.get('UID'), event_args['id'])
         self.assertEqual(ical_event.get('SUMMARY'), event_args['subject'])
         self.assertEqual(ical_event.get('DTSTART').dt, event_args['start'])
@@ -183,10 +186,10 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
 
         self.assertIsNone(ical_event.get('DURATION'))
 
-        # AllDayEvent is False
         self.assertEqual(ical_event.get('DESCRIPTION'), event_args['body'])
         self.assertEqual(ical_event.get('ORGANIZER'), event_args['organizer'])
 
+        # Check recurrence properties
         self.assertIsNotNone(ical_event.get('RRULE'))
         self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'DAILY')
         self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
@@ -201,7 +204,20 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         recurrence_interval = 1
         recurrence_count = 10
         dayofweekmask = w32a_cal.DayOfWeekMaskEnum.MONDAY | w32a_cal.DayOfWeekMaskEnum.WEDNESDAY | w32a_cal.DayOfWeekMaskEnum.FRIDAY
-        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.WEEKLY, recurrence_interval, occurrences=recurrence_count, day_of_week_mask=dayofweekmask)
+
+        with self.assertRaises(ValueError):
+            recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.WEEKLY,
+                                                    recurrence_interval,
+                                                    occurrences=recurrence_count,
+                                                    day_of_week_mask=None)
+            event_args['recurrence_pattern'] = recurrence_pattern
+            event = W32Event(**event_args)
+            ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.WEEKLY,
+                                                  recurrence_interval,
+                                                  occurrences=recurrence_count,
+                                                  day_of_week_mask=dayofweekmask)
         event_args['recurrence_pattern'] = recurrence_pattern
         event = W32Event(**event_args)
         ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
@@ -209,9 +225,10 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         ical_event: icalendar.Event = ical_events[0]
 
         self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 4)
         self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'WEEKLY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
         self.assertEqual(ical_event.get('RRULE').get('COUNT'), recurrence_count)
-        print(ical_event.get('RRULE'))
         self.assertEqual(ical_event.get('RRULE').get('byday'), ['MO', 'WE', 'FR'])
 
     def test_recurring_monthly(self):
@@ -223,7 +240,20 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         recurrence_interval = 1
         recurrence_count = 10
         bymonthday = 13
-        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.MONTHLY, recurrence_interval, occurrences=recurrence_count, day_of_month=bymonthday)
+
+        with self.assertRaises(ValueError):
+            recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.MONTHLY,
+                                                    recurrence_interval,
+                                                    occurrences=recurrence_count,
+                                                    day_of_month=None)
+            event_args['recurrence_pattern'] = recurrence_pattern
+            event = W32Event(**event_args)
+            ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.MONTHLY,
+                                                  recurrence_interval,
+                                                  occurrences=recurrence_count,
+                                                  day_of_month=bymonthday)
         event_args['recurrence_pattern'] = recurrence_pattern
         event = W32Event(**event_args)
         ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
@@ -231,6 +261,64 @@ class ConvertWin32ToIcalTest(unittest.TestCase):
         ical_event: icalendar.Event = ical_events[0]
 
         self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 4)
         self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'MONTHLY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
         self.assertEqual(ical_event.get('RRULE').get('COUNT'), recurrence_count)
         self.assertEqual(ical_event.get('RRULE').get('BYMONTHDAY'), bymonthday)
+
+    def test_recurring_yearly(self):
+        event_args = self.event_with_end_args.copy()
+        event_args['recurring'] = True
+
+        event_args['recurrence_state'] = w32a_cal.RecurrenceState.MASTER
+
+        recurrence_interval = 1
+        recurrence_count = 10
+        bymonthday = 13
+        bymonth = 2
+
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.YEARLY,
+                                                    recurrence_interval,
+                                                    occurrences=recurrence_count,
+                                                    day_of_month=bymonthday,
+                                                    month_of_year=None)
+        event_args['recurrence_pattern'] = recurrence_pattern
+        event = W32Event(**event_args)
+        with self.assertRaises(ValueError):
+            ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.YEARLY,
+                                                    recurrence_interval,
+                                                    occurrences=recurrence_count,
+                                                    day_of_month=None,
+                                                    month_of_year=bymonth)
+        event_args['recurrence_pattern'] = recurrence_pattern
+        event = W32Event(**event_args)
+        with self.assertRaises(ValueError):
+            ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+
+        recurrence_pattern = W32RecurrencePattern(w32a_cal.RecurrenceType.YEARLY,
+                                                    recurrence_interval,
+                                                    occurrences=recurrence_count,
+                                                    day_of_month=bymonthday,
+                                                    month_of_year=bymonth)
+        event_args['recurrence_pattern'] = recurrence_pattern
+        event = W32Event(**event_args)
+        ical_events: list[icalendar.Event] = w32a_cal.win32_event_to_ical(event)
+        self.assertEqual(len(ical_events), 1)
+        ical_event: icalendar.Event = ical_events[0]
+
+        self.assertIsNotNone(ical_event.get('RRULE'))
+        self.assertEqual(len(ical_event.get('RRULE').items()), 5)
+        self.assertEqual(ical_event.get('RRULE').get('FREQ'), 'YEARLY')
+        self.assertEqual(ical_event.get('RRULE').get('INTERVAL'), recurrence_interval)
+        self.assertEqual(ical_event.get('RRULE').get('COUNT'), recurrence_count)
+        self.assertEqual(ical_event.get('RRULE').get('BYMONTHDAY'), bymonthday)
+        self.assertEqual(ical_event.get('RRULE').get('BYMONTH'), bymonth)
+
+    def test_recurring_monthly_nth(self):
+        pass
+
+    def test_recurring_yearly_nth(self):
+        pass

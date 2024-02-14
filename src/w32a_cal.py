@@ -195,7 +195,7 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
 
   rtype = win32_recurrence.RecurrenceType
   day_of_week_mask = None
-  if _win32_day_of_week_mask_valid_for_type(win32_recurrence.RecurrenceType):
+  if _win32_day_of_week_mask_valid_for_type(win32_recurrence.RecurrenceType) and getattr(win32_recurrence, 'DayOfWeekMask', None) is not None:
     day_of_week_mask = _win32_day_of_week_mask_to_ical_str(win32_recurrence.DayOfWeekMask)
 
   if rtype == RecurrenceType.WEEKLY:
@@ -215,14 +215,14 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
     if day_of_week_mask is not None:
       rrule_dict['byday'] = day_of_week_mask
-    if not rrule_dict.get('byday') and not rrule_dict.get('bymonthday'):
+    if not rrule_dict.get('byday', None) or not rrule_dict.get('bymonthday'):
       raise ValueError("DayOfMonth or DayOfWeekMask must be set for MONTHLY_NTH recurrence")
   if rtype == RecurrenceType.YEARLY:
     if getattr(win32_recurrence, 'DayOfMonth', None) is not None:
       rrule_dict['bymonthday'] = win32_recurrence.DayOfMonth
     if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
-    if not rrule_dict.get('bymonthday') and not rrule_dict.get('bymonth'):
+    if not rrule_dict.get('bymonthday') or not rrule_dict.get('bymonth'):
       raise ValueError("DayOfMonth or MonthOfYear must be set for YEARLY recurrence")
   if rtype == RecurrenceType.YEARLY_NTH:
     # TODO INSTANCE
@@ -230,7 +230,7 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
       rrule_dict['byday'] = day_of_week_mask
     if getattr(win32_recurrence, 'MonthOfYear', None) is not None:
       rrule_dict['bymonth'] = win32_recurrence.MonthOfYear
-    if not rrule_dict.get('byday') and not rrule_dict.get('bymonth'):
+    if not rrule_dict.get('byday') or not rrule_dict.get('bymonth'):
       raise ValueError("DayOfWeekMask or MonthOfYear must be set for YEARLY_NTH recurrence")
 
   return rrule_dict
