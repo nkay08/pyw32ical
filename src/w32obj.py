@@ -1,6 +1,6 @@
 from typing import Optional
 import datetime
-from w32a_cal import BusyStatus, MeetingStatus, Importance, RecurrenceState, RecurrenceType, OUTLOOK_DATE_FORMAT
+from w32a_cal import BusyStatus, MeetingStatus, Importance, RecurrenceState, RecurrenceType, OUTLOOK_DATE_FORMAT, _win32_day_of_week_mask_valid_for_type
 
 def datetime_to_w32str(dt: datetime.datetime) -> str:
     # TODO: check
@@ -27,6 +27,9 @@ class W32RecurrencePattern:
                  occurrences: Optional[int] = None,
                  end: Optional[datetime.datetime] = None,
                  no_end: bool = False,
+                 day_of_week_mask: Optional[int] = None,
+                 month_of_year: Optional[int] = None,
+                 day_of_month: Optional[int] = None,
                  exceptions: list[W32Exception] = []) -> None:
         self.RecurrenceType: RecurrenceType = recurrence_type
         self.Interval: int = interval
@@ -43,6 +46,24 @@ class W32RecurrencePattern:
                 self.EndTime = datetime_to_w32str(end.time())
             else:
                 raise ValueError("Either occurrences or end date must be specified")
+
+        self.DayOfWeekMask: Optional[int] = None
+        self.MonthOfYear: Optional[int] = None
+        self.DayOfMonth: Optional[int] = None
+
+        if _win32_day_of_week_mask_valid_for_type(recurrence_type):
+            self.DayOfWeekMask = day_of_week_mask
+
+        if (recurrence_type == RecurrenceType.MONTHLY
+            or recurrence_type == RecurrenceType.MONTHLY_NTH
+            or recurrence_type == RecurrenceType.YEARLY
+            or recurrence_type == RecurrenceType.YEARLY_NTH
+            ):
+            self.DayOfMonth = day_of_month
+        if (recurrence_type == RecurrenceType.YEARLY
+            or recurrence_type == RecurrenceType.YEARLY_NTH
+            ):
+            self.MonthOfYear = month_of_year
 
         self.Exceptions: list[W32Exception] = exceptions
 
