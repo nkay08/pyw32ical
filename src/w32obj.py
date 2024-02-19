@@ -1,10 +1,10 @@
 from typing import Optional
 import datetime
-from w32a_cal import BusyStatus, MeetingStatus, Importance, RecurrenceState, RecurrenceType, OUTLOOK_DATE_FORMAT, _win32_day_of_week_mask_valid_for_type
+from w32a_cal import BusyStatus, MeetingStatus, Importance, RecurrenceState, RecurrenceType, OUTLOOK_DATETIME_FORMAT, _win32_day_of_week_mask_valid_for_type
 
 def datetime_to_w32str(dt: datetime.datetime) -> str:
     # TODO: check
-    return dt.strftime(OUTLOOK_DATE_FORMAT)
+    return dt.strftime(OUTLOOK_DATETIME_FORMAT)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # Approximation of W32 (Outlook) event related objects that are available via pywin32

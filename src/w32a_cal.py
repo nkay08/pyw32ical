@@ -25,7 +25,14 @@ ICAL_FILTER_SAFE={
   "status": True
   }
 
-OUTLOOK_DATE_FORMAT = '%m/%d/%Y %H:%M'
+OUTLOOK_DATETIME_FORMAT = '%m/%d/%Y %H:%M'
+OUTLOOK_DATE_FORMAT = '%m/%d/%Y'
+OUTLOOK_DATE_FORMAT2 = '%d/%m/%Y'
+
+class CalendarDetail(IntEnum):
+  olFreeBusyOnly = 0
+  olFreeBusyAndSubject = 1
+  olFullDetails = 2
 
 # https://learn.microsoft.com/en-us/office/vba/api/outlook.olimportance
 class Importance(IntEnum):
@@ -234,6 +241,30 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
       raise ValueError("DayOfWeekMask or MonthOfYear must be set for YEARLY_NTH recurrence")
 
   return rrule_dict
+
+
+def win32_get_ical_from_ol_export(win32_calendar_folder,
+                                  calendar_details: CalendarDetail = CalendarDetail.olFreeBusyAndSubject,
+                                  start: Optional[datetime.datetime] = None,
+                                  end: Optional[datetime.datetime] = None,
+                                  fpath: str = ".\\test.ics") -> Optional[icalendar.Calendar]:
+  import tempfile
+  cal_exporter = win32_calendar_folder.GetCalendarExporter()
+  cal_exporter.CalendarDetail = calendar_details
+  cal_exporter.SaveAsICal(fpath)
+
+  ical = None
+
+  # with delete_on_close = False, the file is not deleted when it is closed, but when the context ends
+  with tempfile.NamedTemporaryFile(delete_on_close = False) as file:
+    filename = file.name
+    file.close()
+    logging.debug("Dump calendar to %s", filename)
+    cal_exporter.SaveAsICal(filename)
+    with open (filename, "r") as written_file:
+      ical = icalendar.Calendar.from_ical(written_file.read())
+
+  return ical
 
 
 def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Optional[dict] = None) -> list[icalendar.Event]:
