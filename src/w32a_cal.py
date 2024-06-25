@@ -4,6 +4,8 @@ import dateutil.parser
 import pytz
 import icalendar
 
+from tzlocal.windows_tz import win_tz
+
 import logging
 
 from typing import Optional
@@ -114,13 +116,34 @@ def _win32_recurrence_type_to_ical(rec_type: RecurrenceType) -> Optional[str]:
   return RecurrenceType2Ical.get(rec_type, None)
 
 def win32_date_to_datetime(d: str, utc: bool = False, tz: Optional[datetime.tzinfo] = None) -> datetime.datetime:
-  dt = dateutil.parser.parse(str(d))
-  if tz is not None:
-    dt = dt.replace(tzinfo=tz)
-  elif utc:
+  if tz is None:
+    dt = dateutil.parser.parse(str(d))
+  else:
+    dt = dateutil.parser.parse(str(d), ignoretz=True)
+    dt = tz.localize(dt)
+
+  if utc:
     dt = dt.replace(tzinfo=pytz.utc)
 
   return dt
+
+def win32_tz_name_to_tz(w32_tz_name: str) -> Optional[datetime.tzinfo]:
+  tz_name: str | None = win_tz.get(w32_tz_name)
+  if tz_name is None:
+      # Nope, that didn't work. Try adding "Standard Time",
+      # it seems to work a lot of times:
+      tz_name = win_tz.get(w32_tz_name + " Standard Time")
+  if tz_name is None:
+    return None
+
+  tz: datetime.tzinfo = pytz.timezone(tz_name)
+  return tz
+
+def win32_tz_to_tz(w32_tz) -> Optional[datetime.tzinfo]:
+  return win32_tz_name_to_tz(w32_tz.ID)
+
+def ol_app_get_tz(ol_app: object) -> Optional[datetime.tzinfo]:
+  return win32_tz_to_tz(ol_app.TimeZones.CurrentTimeZone)
 
 def _win32_day_of_week_mask_to_ical_str(win32_mask: DayOfWeekMaskEnum) -> list[int]:
   rrule_weekday = []
@@ -175,9 +198,14 @@ def _win32_importance_to_ical(win32_importance):
   else:
     return 6
 
-def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
+def _win32_event_recurrence_to_rrule_dict(win32_event, app_tz: Optional[datetime.tzinfo] = None) -> dict:
   # https://icalendar.org/rrule-tool.html
   # DTSTART is defined in the Event, so we do not need it here
+
+  if app_tz is None:
+    app_tz = win32_tz_to_tz(win32_event.StartTimeZone)
+  if app_tz is None:
+    app_tz = pytz.utc
 
   if not win32_event.IsRecurring or win32_event.RecurrenceState != RecurrenceState.MASTER:
     return {}
@@ -193,9 +221,7 @@ def _win32_event_recurrence_to_rrule_dict(win32_event) -> dict:
     if win32_recurrence.PatternEndDate is not None:
       end_date = win32_date_to_datetime(win32_recurrence.PatternEndDate)
       if win32_recurrence.EndTime is not None:
-        end_date = datetime.datetime.combine(end_date.date(), win32_date_to_datetime(win32_recurrence.EndTime).time())
-      # Needs timezone
-      end_date = end_date.replace(tzinfo=pytz.utc)
+        end_date = datetime.datetime.combine(end_date.date(), win32_date_to_datetime(win32_recurrence.EndTime).time(), tzinfo=app_tz)
       rrule_dict['until'] = end_date
     elif win32_recurrence.Occurrences > 0:
       rrule_dict['count'] = win32_recurrence.Occurrences
@@ -267,7 +293,8 @@ def win32_get_ical_from_ol_export(win32_calendar_folder,
   return ical
 
 
-def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Optional[dict] = None) -> list[icalendar.Event]:
+def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Optional[dict] = None,
+                        app_tz: Optional[datetime.tzinfo] = None) -> list[icalendar.Event]:
   import pytz
   import icalendar
   event_list: list[icalendar.Event] = []
@@ -279,7 +306,24 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
   # https://docs.microsoft.com/en-us/office/vba/api/outlook.appointmentitem.entryid
   ical_event.add('UID', win32_event.EntryID)
 
-  start = win32_date_to_datetime(win32_event.StartUTC, utc=True)
+  start_tz = win32_tz_to_tz(win32_event.StartTimeZone)
+
+  if app_tz is None:
+    app_tz = start_tz
+
+  # TODO: raise Error perhaps?
+  if app_tz is None:
+    app_tz = pytz.utc
+
+
+  start = win32_date_to_datetime(win32_event.Start, tz=start_tz) if (start_tz is not None) else win32_date_to_datetime(win32_event.StartUTC, utc=True)
+
+  if getattr(win32_event, "End", None) is not None:
+    end_tz = win32_tz_to_tz(win32_event.EndTimeZone)
+    end = win32_date_to_datetime(win32_event.End, tz=end_tz) if (end_tz is not None) else win32_date_to_datetime(win32_event.EndUTC, utc=True)
+  else:
+    end = None
+
   if getattr(win32_event, "AllDayEvent", False):
     ical_event.add("DTSTART", start.date())
   else:
@@ -299,7 +343,6 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
   if getattr(win32_event, "Duration", 0) is not None and win32_event.Duration > 0:
     ical_event.add('DURATION', datetime.timedelta(minutes = win32_event.Duration))
   else:
-    end = win32_date_to_datetime(win32_event.EndUTC, utc=True)
     if getattr(win32_event, "AllDayEvent", False):
       # TODO: set it https://github.com/icalendar/icalendar/issues/71
       ical_event.add("DTEND", end.date())
@@ -371,14 +414,14 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
 
     if win32_event.IsRecurring and win32_event.RecurrenceState == RecurrenceState.MASTER:
 
-      ical_event.add("RRULE", _win32_event_recurrence_to_rrule_dict(win32_event))
+      ical_event.add("RRULE", _win32_event_recurrence_to_rrule_dict(win32_event, app_tz=app_tz))
 
       win32_recurrence = win32_event.GetRecurrencePattern()
       if win32_recurrence is not None:
         exdate_list: list[datetime.datetime] = []
         for ex in win32_recurrence.Exceptions:
           exdate_datetime: datetime.datetime = datetime.datetime.combine(win32_date_to_datetime(ex.OriginalDate).date(),
-                                                                        win32_date_to_datetime(win32_event.StartUTC).time())
+                                                                        win32_date_to_datetime(win32_event.Start).time(), tzinfo=app_tz)
           # We have to add the timezone or else, the recurrence-id does not match with the original ical date
           # -> without tz UTC, this would result in missing "Z" at the end of the datetime string
           exdate_datetime = exdate_datetime.replace(tzinfo=pytz.utc)
@@ -387,7 +430,7 @@ def win32_event_to_ical(win32_event, parse_recurrence: bool = True, filter: Opti
             logging.debug("Parsing recurrence exception event")
             if ex.AppointmentItem is not None:
               # parse_recurrence must be False to avoid potential recursion!
-              ex_ical_event = win32_event_to_ical(ex.AppointmentItem, parse_recurrence=False, filter=filter)[0]
+              ex_ical_event = win32_event_to_ical(ex.AppointmentItem, parse_recurrence=False, filter=filter, app_tz=app_tz)[0]
               ex_ical_event.add("RECURRENCE-ID", exdate_vdate)
               if ex_ical_event.get('UID') != ical_event.get('UID'):
                 logging.warning("Event and recurrence exception have different UID: %s <> %s", ical_event.decoded('UID').decode(), ex_ical_event.decoded('UID').decode())
